@@ -29,6 +29,7 @@ like invoices and boarding passes, are left alone.
 - [Install](#install)
 - [Quick start](#quick-start)
 - [Configuration](#configuration)
+- [Use it from Claude Code or Codex](#use-it-from-claude-code-or-codex)
 - [How it works](#how-it-works)
 - [Troubleshooting](#troubleshooting)
 - [Similar tools](#similar-tools)
@@ -109,6 +110,60 @@ Restart the service after editing (`paperwatch install` again, or `brew services
 | `{authors} ({year}) {journal}` | `Harris et al. (2020) Nature.pdf` |
 
 Every setting can also be given on the command line; see `paperwatch watch --help`.
+
+## Use it from Claude Code or Codex
+
+paperwatch also ships as an **agent skill**: a short instruction file
+([`skills/paperwatch/SKILL.md`](skills/paperwatch/SKILL.md)) that teaches an AI coding assistant
+how to use the tool. The background watcher handles new downloads by itself; the skill is for
+everything you'd rather just *ask* for:
+
+> *"Rename all the papers in ~/Documents/thesis-refs"*
+> *"Rename them as Year - Authors - Title instead"*
+> *"Why wasn't the PDF I just downloaded renamed?"*
+> *"Also watch my Desktop and move renamed papers into ~/Papers"*
+
+**How it works:** the assistant only loads the skill when your request is about renaming or
+organizing papers. It then:
+
+1. checks that paperwatch is installed, and offers to install it if not;
+2. runs a dry run (`paperwatch rename … -n`) and shows you the proposed new names;
+3. renames the files only after you agree;
+4. for setup questions, edits the config file and restarts the service for you;
+5. for failures, reads the log, runs `paperwatch -v` to see what was found, and explains
+   or fixes the problem.
+
+The skill itself contains no code. Everything runs through the `paperwatch` command, so the
+same skill works in both tools.
+
+### Claude Code
+
+Inside Claude Code:
+
+```text
+/plugin marketplace add loukesio/paperwatch
+/plugin install paperwatch@paperwatch
+```
+
+On Claude Code 2.1.275 or later this works in one step:
+`/plugin install paperwatch --marketplace loukesio/paperwatch`
+
+### Codex
+
+Inside Codex, ask the built-in installer:
+
+```text
+$skill-installer install https://github.com/loukesio/paperwatch/tree/main/skills/paperwatch
+```
+
+Or copy it by hand:
+
+```bash
+git clone https://github.com/loukesio/paperwatch /tmp/paperwatch
+mkdir -p ~/.codex/skills && cp -r /tmp/paperwatch/skills/paperwatch ~/.codex/skills/
+```
+
+Restart Codex afterwards so it picks up the new skill.
 
 ## How it works
 

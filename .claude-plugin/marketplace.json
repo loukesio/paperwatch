@@ -1,0 +1,12 @@
+{
+  "name": "paperwatch",
+  "owner": { "name": "loukesio", "url": "https://github.com/loukesio" },
+  "description": "Claude Code skill for paperwatch: rename scientific paper PDFs from their DOI / arXiv metadata",
+  "plugins": [
+    {
+      "name": "paperwatch",
+      "source": "./",
+      "description": "Rename scientific paper PDFs to Author_Year_Title.pdf and manage the paperwatch download watcher"
+    }
+  ]
+}
