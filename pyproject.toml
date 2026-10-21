@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "paperwatch"
+version = "0.1.0"
+description = "Automatically rename downloaded scientific papers (PDF) using their DOI / arXiv metadata."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "Theodosiou" }]
+keywords = ["pdf", "doi", "arxiv", "crossref", "rename", "papers", "research"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "pypdf>=4.0",
+    "watchdog>=3.0",
+    "tomli>=2.0; python_version < '3.11'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+paperwatch = "paperwatch.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/loukesio/paperwatch"
+Issues = "https://github.com/loukesio/paperwatch/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/paperwatch"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,70 @@
+name: Release
+
+# Push a tag like v0.1.0 to build binaries for all OSes, create a GitHub release and publish to PyPI.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  binaries:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: paperwatch-linux-x86_64
+          - os: macos-latest
+            name: paperwatch-macos-arm64
+          - os: macos-15-intel
+            name: paperwatch-macos-x86_64
+          - os: windows-latest
+            name: paperwatch-windows-x86_64.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install . pyinstaller
+      - run: pyinstaller --onefile --name paperwatch packaging/entry.py
+      - name: Rename binary
+        shell: bash
+        run: |
+          if [ -f dist/paperwatch.exe ]; then mv dist/paperwatch.exe "dist/${{ matrix.name }}"; \
+          else mv dist/paperwatch "dist/${{ matrix.name }}"; fi
+          "dist/${{ matrix.name }}" --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: dist/${{ matrix.name }}
+
+  release:
+    needs: binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+
+  pypi:
+    # Enable after configuring PyPI trusted publishing: set repo variable PUBLISH_PYPI=true
+    if: vars.PUBLISH_PYPI == 'true'
+    needs: binaries
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write  # PyPI trusted publishing, no API token needed
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build && python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1
