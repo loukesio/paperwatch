@@ -35,6 +35,8 @@ def _load_config(args) -> config.Config:
     cfg = config.load(Path(args.config).expanduser() if args.config else None)
     if getattr(args, "template", None):
         cfg.template = args.template
+    if getattr(args, "space", None) is not None:
+        cfg.space = args.space
     if getattr(args, "email", None):
         cfg.email = args.email
     if getattr(args, "no_title_search", False):
@@ -117,6 +119,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     def naming_opts(sp):
         sp.add_argument("-t", "--template", help='file name template, e.g. "{year} - {authors} - {title}"')
+        sp.add_argument("--space", metavar="CHAR",
+                        help='replace spaces in titles/authors with this, e.g. "-" or "_" (default: keep spaces)')
         sp.add_argument("--email", help="your e-mail for Crossref's polite pool")
         sp.add_argument("--ascii", action="store_true", help="ASCII-only file names")
         sp.add_argument("--no-title-search", action="store_true",

@@ -36,6 +36,7 @@ Useful options (work with `rename` and `watch`):
 |---|---|
 | `-r` | include sub-folders |
 | `-t "<template>"` | naming template (see below) |
+| `--space <char>` | replace spaces inside titles/authors, e.g. `-` or `_` (default: keep spaces) |
 | `--move-to <folder>` | move renamed papers into a folder |
 | `--ascii` | strip accents / non-ASCII characters |
 | `--no-title-search` | only rename papers that have a DOI / arXiv ID |
@@ -61,7 +62,7 @@ Use only one of `brew services` and `paperwatch install`, never both. Check whic
 `brew services list` before changing anything.
 
 Settings live in a TOML file; `paperwatch config --show` prints its path and contents. Keys:
-`folders` (list of watched folders, default `["~/Downloads"]`), `template`, `max_length`,
+`folders` (list of watched folders, default `["~/Downloads"]`), `template`, `space`, `max_length`,
 `ascii_only`, `title_search`, `move_to`, `email`. Edit the file, then restart the service
 (`brew services restart paperwatch`, or run `paperwatch install` again).
 

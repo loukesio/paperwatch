@@ -91,6 +91,7 @@ Linux `~/.config/paperwatch/config.toml`, Windows `%APPDATA%\paperwatch\config.t
 ```toml
 folders = ["~/Downloads"]              # folders to watch
 template = "{author}_{year}_{title}"   # file name template, see below
+space = " "                            # use "-" or "_" for names without spaces
 max_length = 150                       # longer names are cut at a word boundary
 ascii_only = false                     # "Schrödinger" -> "Schrodinger"
 title_search = true                    # no DOI/arXiv ID? search Crossref by title (strict match)
@@ -108,6 +109,12 @@ Restart the service after editing (`paperwatch install` again, or `brew services
 | `{author}_{year}_{title}` *(default)* | `Harris_2020_Array programming with NumPy.pdf` |
 | `{year} - {authors} - {title}` | `2020 - Harris et al. - Array programming with NumPy.pdf` |
 | `{authors} ({year}) {journal}` | `Harris et al. (2020) Nature.pdf` |
+
+**Spaces:** `space` controls what goes between the words *inside* a title or author list.
+By default normal spaces are kept. Set `space = "-"` for
+`Array-programming-with-NumPy`, or `space = "_"` for `Array_programming_with_NumPy`
+(or pass `--space -` on the command line). Separators you type in the
+template itself (like ` - ` above) are always kept as written.
 
 Every setting can also be given on the command line; see `paperwatch watch --help`.
 

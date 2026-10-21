@@ -69,7 +69,7 @@ def process(path: Path, cfg: Config, dry_run: bool = False) -> Result:
         return res
     res.paper = paper
 
-    stem = build_name(paper, cfg.template, cfg.max_length, cfg.ascii_only)
+    stem = build_name(paper, cfg.template, cfg.max_length, cfg.ascii_only, cfg.space)
     if not stem:
         res.reason = "empty file name"
         return res

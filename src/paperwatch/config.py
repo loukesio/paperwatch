@@ -13,7 +13,7 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-from paperwatch.naming import DEFAULT_TEMPLATE
+from paperwatch.naming import DEFAULT_SPACE, DEFAULT_TEMPLATE
 
 APP = "paperwatch"
 
@@ -60,6 +60,7 @@ class Config:
     folders: list[Path] = field(default_factory=lambda: [default_downloads()])
     template: str = DEFAULT_TEMPLATE
     max_length: int = 150
+    space: str = DEFAULT_SPACE  # replaces spaces inside author/title; " " keeps them
     ascii_only: bool = False
     email: Optional[str] = None  # sent to Crossref for its faster "polite" pool
     title_search: bool = True  # fall back to a title search when no DOI/arXiv ID is found
@@ -75,6 +76,12 @@ folders = ["{default_downloads().as_posix()}"]
 #   {{author}}  = first author's family name     -> "Smith"
 #   {{authors}} = "Smith", "Smith & Lee" or "Smith et al."
 template = "{DEFAULT_TEMPLATE}"
+
+# What to put instead of spaces inside the title / authors:
+#   " "  -> Forano_2020_Timescales of motor memory formation.pdf    (default, keep spaces)
+#   "-"  -> Forano_2020_Timescales-of-motor-memory-formation.pdf
+#   "_"  -> Forano_2020_Timescales_of_motor_memory_formation.pdf
+space = "{DEFAULT_SPACE}"
 
 # Maximum length of the file name (without .pdf).
 max_length = 150
@@ -102,7 +109,7 @@ def load(path: Optional[Path] = None) -> Config:
         data = tomllib.load(f)
     if "folders" in data:
         cfg.folders = [Path(p).expanduser() for p in data["folders"]]
-    for key in ("template", "max_length", "ascii_only", "email", "title_search"):
+    for key in ("template", "max_length", "space", "ascii_only", "email", "title_search"):
         if key in data:
             setattr(cfg, key, data[key])
     if data.get("move_to"):

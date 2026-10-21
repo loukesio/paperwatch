@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "paperwatch"
-version = "0.1.0"
+version = "0.2.0"
 description = "Automatically rename downloaded scientific papers (PDF) using their DOI / arXiv metadata."
 readme = "README.md"
 license = "MIT"

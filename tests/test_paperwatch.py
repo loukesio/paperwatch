@@ -79,18 +79,29 @@ def test_build_name_default():
     p = Paper(title="Array programming with <i>NumPy</i>: a review", authors=["Harris", "Millman", "van der Walt"],
               year="2020", journal="Nature", doi="10.1038/s41586-020-2649-2")
     assert build_name(p) == "Harris_2020_Array programming with NumPy - a review"
+    assert build_name(p, space="-") == "Harris_2020_Array-programming-with-NumPy-a-review"
+    assert build_name(p, space="_") == "Harris_2020_Array_programming_with_NumPy_a_review"
+
+
+def test_build_name_space_keeps_template_separators():
+    p = Paper(title="On things", authors=["Smith", "Lee", "Wu"], year="2021")
+    assert build_name(p, "{year} - {authors} - {title}", space="-") == "2021 - Smith-et-al. - On-things"
+    two = Paper(title="On things", authors=["Smith", "Lee"], year="2021")
+    assert build_name(two, "{authors}_{year}", space="-") == "Smith-and-Lee_2021"
+    assert build_name(two, space="/") == "Smith_2021_Onthings"  # illegal space char is dropped
 
 
 def test_build_name_template_and_missing_fields():
     p = Paper(title="On things", authors=["Smith", "Lee"], year="")
-    assert build_name(p, "{authors} - {year} - {title}") == "Smith & Lee - On things"
-    assert build_name(p, "{author}_{year}_{title}") == "Smith_On things"
+    assert build_name(p, "{authors} - {year} - {title}", space=" ") == "Smith & Lee - On things"
+    assert build_name(p, "{author}_{year}_{title}", space=" ") == "Smith_On things"
 
 
-def test_build_name_truncates_on_word_boundary():
+@pytest.mark.parametrize("space", [" ", "-", "_"])
+def test_build_name_truncates_on_word_boundary(space):
     p = Paper(title="word " * 100, authors=["Smith"], year="2024")
-    name = build_name(p, max_length=40)
-    assert len(name) <= 40 and not name.endswith(" ")
+    name = build_name(p, max_length=40, space=space)
+    assert len(name) <= 40 and name.endswith("word")
 
 
 def test_clean_text_illegal_and_ascii():

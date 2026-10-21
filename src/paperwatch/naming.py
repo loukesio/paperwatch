@@ -10,6 +10,7 @@ from pathlib import Path
 from paperwatch.lookup import Paper
 
 DEFAULT_TEMPLATE = "{author}_{year}_{title}"
+DEFAULT_SPACE = " "
 
 # Characters illegal on Windows (the strictest of the three OSes) plus control chars.
 _ILLEGAL = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
@@ -31,6 +32,18 @@ def clean_text(s: str, ascii_only: bool = False) -> str:
     return " ".join(s.split())
 
 
+def respace(s: str, space: str) -> str:
+    """Replace the spaces inside a field: "Array programming" -> "Array-programming"."""
+    if space == " ":
+        return s
+    s = s.replace(" & ", " and ")
+    s = re.sub(r"\s+-\s+", " ", s)  # "Title - subtitle" (from a colon) -> "Title subtitle"
+    s = re.sub(r"\s+", space, s)
+    if space:
+        s = re.sub(f"(?:{re.escape(space)}){{2,}}", space, s)
+    return s
+
+
 def format_authors(authors: list[str]) -> str:
     if not authors:
         return ""
@@ -42,8 +55,13 @@ def format_authors(authors: list[str]) -> str:
 
 
 def build_name(paper: Paper, template: str = DEFAULT_TEMPLATE, max_length: int = 150,
-               ascii_only: bool = False) -> str:
-    """Return the new file stem (no extension)."""
+               ascii_only: bool = False, space: str = DEFAULT_SPACE) -> str:
+    """Return the new file stem (no extension).
+
+    `space` replaces spaces inside the fields (" " keeps them); separators written in the
+    template itself are left as they are.
+    """
+    space = _ILLEGAL.sub("", space)
     fields = {
         "author": paper.authors[0] if paper.authors else "",
         "authors": format_authors(paper.authors),
@@ -53,7 +71,7 @@ def build_name(paper: Paper, template: str = DEFAULT_TEMPLATE, max_length: int =
         "doi": paper.doi.replace("/", "_"),
         "arxiv": paper.arxiv.replace("/", "_"),
     }
-    fields = {k: clean_text(v, ascii_only) for k, v in fields.items()}
+    fields = {k: respace(clean_text(v, ascii_only), space) for k, v in fields.items()}
     name = template.format(**fields)
 
     # Collapse separators left behind by empty fields, e.g. "Smith__Title" -> "Smith_Title"
@@ -63,7 +81,12 @@ def build_name(paper: Paper, template: str = DEFAULT_TEMPLATE, max_length: int =
     name = re.sub(r"\s*_\s*", "_", name).strip(" _-.")
 
     if len(name) > max_length:
-        name = name[:max_length].rsplit(" ", 1)[0].rstrip(" _-.,")
+        cut = name[:max_length]
+        # cut at the last word boundary, if there is one in the second half
+        boundary = max(cut.rfind(" "), cut.rfind(space) if space else -1)
+        if boundary > max_length // 2:
+            cut = cut[:boundary]
+        name = cut.rstrip(" _-.,")
     if name.upper() in _WINDOWS_RESERVED:
         name = f"_{name}"
     return name
