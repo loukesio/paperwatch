@@ -63,7 +63,9 @@ Use only one of `brew services` and `paperwatch install`, never both. Check whic
 
 Settings live in a TOML file; `paperwatch config --show` prints its path and contents. Keys:
 `folders` (list of watched folders, default `["~/Downloads"]`), `template`, `space`, `max_length`,
-`ascii_only`, `title_search`, `move_to`, `email`. Edit the file, then restart the service
+`ascii_only`, `title_search`, `move_to`, `email`, `exclude` (glob patterns to leave alone).
+An empty `.paperwatchignore` file protects a folder and its sub-folders (use it for the
+user's own manuscripts, theses and build outputs). Edit the file, then restart the service
 (`brew services restart paperwatch`, or run `paperwatch install` again).
 
 Logs:

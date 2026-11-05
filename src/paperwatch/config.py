@@ -65,6 +65,7 @@ class Config:
     email: Optional[str] = None  # sent to Crossref for its faster "polite" pool
     title_search: bool = True  # fall back to a title search when no DOI/arXiv ID is found
     move_to: Optional[Path] = None  # optionally move renamed papers into this folder
+    exclude: list[str] = field(default_factory=list)  # glob patterns of paths to leave alone
 
 
 DEFAULT_CONFIG_TEXT = f"""\
@@ -97,6 +98,13 @@ title_search = true
 
 # Move renamed papers into this folder (optional).
 # move_to = "~/Papers"
+
+# Never touch PDFs whose path matches one of these glob patterns. A pattern without "/"
+# is matched against every folder / file name in the path, e.g. "*.Rcheck" or "_book".
+# You can also protect a whole folder by putting an empty file called
+# ".paperwatchignore" in it (applies to all sub-folders too).
+# exclude = ["*.Rcheck", "_book", "*/generated/*"]
+exclude = []
 """
 
 
@@ -112,6 +120,8 @@ def load(path: Optional[Path] = None) -> Config:
     for key in ("template", "max_length", "space", "ascii_only", "email", "title_search"):
         if key in data:
             setattr(cfg, key, data[key])
+    if "exclude" in data:
+        cfg.exclude = [str(x) for x in data["exclude"]]
     if data.get("move_to"):
         cfg.move_to = Path(data["move_to"]).expanduser()
     return cfg

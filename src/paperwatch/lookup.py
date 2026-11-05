@@ -6,6 +6,7 @@ import difflib
 import json
 import logging
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -42,15 +43,28 @@ def _user_agent(email: Optional[str]) -> str:
     return ua + ")"
 
 
+RETRIES = 4
+
+
 def _get(url: str, email: Optional[str]) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": _user_agent(email)})
-    try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
-            return resp.read()
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            raise NotFound(url) from e
-        raise
+    for attempt in range(RETRIES + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise NotFound(url) from e
+            # Crossref / arXiv rate limits: wait (Retry-After if given) and try again.
+            if e.code in (429, 503) and attempt < RETRIES:
+                try:
+                    wait = float(e.headers.get("Retry-After") or 0)
+                except (TypeError, ValueError):
+                    wait = 0
+                time.sleep(min(max(wait, 2 ** attempt), 60))
+                continue
+            raise
+    raise RuntimeError("unreachable")
 
 
 def _family(name: str) -> str:
@@ -139,12 +153,27 @@ def crossref_by_title(title: str, email: Optional[str] = None, min_ratio: float 
     return _crossref_to_paper(best)
 
 
+# Things text extraction glues onto the end of a DOI:
+#   "...2649-2Received"            next word of the page
+#   "...672609doi"                 bioRxiv "doi: https://doi.org/..." footer
+#   "...1230579/full", ".../pdf"   the rest of a publisher URL
+_DOI_TAIL_RES = (
+    re.compile(r"(?<=\d)[A-Z][a-z]+$"),
+    re.compile(r"(?<=\d)[a-z]{2,}$"),
+    re.compile(r"/(full|abstract|pdf|epdf|epub|meta|html|fulltext|references|suppl.*)/?$",
+               re.IGNORECASE),
+)
+
+
 def _doi_variants(doi: str):
-    """Text extraction sometimes glues the next word onto a DOI ("...2649-2Received")."""
+    """`doi` first, then copies with the usual extraction junk removed from its end."""
+    seen = [doi]
     yield doi
-    trimmed = re.sub(r"(?<=\d)[A-Z][a-z]+$", "", doi)
-    if trimmed != doi:
-        yield trimmed
+    for rx in _DOI_TAIL_RES:
+        trimmed = rx.sub("", doi).rstrip("/.")
+        if trimmed and trimmed not in seen:
+            seen.append(trimmed)
+            yield trimmed
 
 
 def lookup(doi: Optional[str] = None, arxiv: Optional[str] = None,

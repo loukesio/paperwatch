@@ -163,3 +163,165 @@ def test_process_dry_run_and_non_pdf(tmp_path, monkeypatch):
     fake = tmp_path / "fake.pdf"
     fake.write_text("<html>login page</html>")
     assert core.process(fake, Config()).reason == "not a PDF"
+
+
+# ---------------------------------------------------------------- false-rename guards
+import shutil
+import subprocess
+
+from paperwatch.identify import figure_reason, title_in_text
+from paperwatch.lookup import _doi_variants
+
+
+@pytest.mark.parametrize("meta", [
+    {"/Title": "R Graphics Output", "/Creator": "R", "/Producer": "R 4.5.1"},
+    {"/Creator": "Matplotlib v3.8.4, https://matplotlib.org", "/Producer": "Matplotlib pdf backend v3.8.4"},
+    {"/Producer": "cairo 1.17.6 (https://cairographics.org)"},
+])
+def test_plots_are_never_renamed(tmp_path, monkeypatch, meta):
+    pdf = _make_pdf(tmp_path / "Figure1.pdf", meta)
+    monkeypatch.setattr(core, "lookup", lambda *a, **k: pytest.fail("plot must not be looked up"))
+    res = core.process(pdf, Config())
+    assert not res.renamed and "figure" in res.reason and pdf.exists()
+
+
+def test_papers_from_latex_are_not_mistaken_for_plots(tmp_path):
+    pdf = _make_pdf(tmp_path / "p.pdf", {"/Creator": "LaTeX with hyperref", "/Producer": "pdfTeX-1.40.26",
+                                         "/Subject": "doi:10.1000/abc"})
+    assert identify(pdf).skip_reason == ""
+
+
+@pytest.mark.skipif(shutil.which("Rscript") is None, reason="R not installed")
+def test_real_r_plot_is_not_renamed(tmp_path, monkeypatch):
+    out = tmp_path / "Rplots.pdf"
+    subprocess.run(["Rscript", "-e", f"pdf('{out}'); plot(1:10, main='Graphics Output'); invisible(dev.off())"],
+                   check=True, capture_output=True)
+    monkeypatch.setattr(core, "lookup", lambda *a, **k: pytest.fail("plot must not be looked up"))
+    res = core.process(out, Config())
+    assert not res.renamed and out.exists(), res.reason
+
+
+@pytest.mark.parametrize("title", ["R Graphics Output", "Rplots", "Figure 3 panel B", "page.html"])
+def test_more_junk_titles(tmp_path, title):
+    pdf = _make_pdf(tmp_path / "x.pdf", {"/Title": title})
+    assert identify(pdf).title_guess is None
+
+
+def test_title_in_text():
+    page = ("Received 3 May 2017\nAmplifiers of selection\nB. Adlam, K. Chatterjee, M. A. Nowak\n"
+            "See also Wootton 2005, doi:10.1038/nature04072")
+    assert title_in_text("Amplifiers of selection", page)
+    assert title_in_text("Amplifiers of selection", "Amplifiersofselection by Adlam")   # spaces lost
+    assert not title_in_text("Field parameterization and experimental test of the neutral "
+                             "theory of biodiversity", page)
+
+
+def test_reference_doi_is_rejected(tmp_path, monkeypatch):
+    """A figure/paper whose only DOI is a citation must not be renamed after the cited paper."""
+    from paperwatch.identify import Identifiers
+    ids = Identifiers(doi="10.1038/nature04072", source="page text", text_dois=["10.1038/nature04072"],
+                      text="Evolutionary dynamics on graphs\nLieberman, Hauert, Nowak\n... ref doi 10.1038/nature04072")
+    pdf = _make_pdf(tmp_path / "lieberman.pdf", {})
+    monkeypatch.setattr(core, "identify", lambda p: ids)
+    monkeypatch.setattr(core, "lookup", lambda *a, **k: Paper(
+        title="Field parameterization and experimental test of the neutral theory of biodiversity",
+        authors=["Wootton"], year="2005"))
+    res = core.process(pdf, Config(title_search=False))
+    assert not res.renamed and "no DOI in the text matches" in res.reason
+
+
+def test_verified_text_doi_is_accepted(tmp_path, monkeypatch):
+    from paperwatch.identify import Identifiers
+    ids = Identifiers(doi="10.1/ref", source="page text", text_dois=["10.1/ref", "10.1/own"],
+                      text="Amplifiers of selection\nAdlam et al.\n10.1/ref 10.1/own")
+    titles = {"10.1/ref": "Something else entirely about birds", "10.1/own": "Amplifiers of selection"}
+    pdf = _make_pdf(tmp_path / "a.pdf", {})
+    monkeypatch.setattr(core, "identify", lambda p: ids)
+    monkeypatch.setattr(core, "lookup", lambda doi=None, **k: Paper(title=titles[doi], authors=["Adlam"], year="2015"))
+    res = core.process(pdf, Config(), dry_run=True)
+    assert res.target.name == "Adlam_2015_Amplifiers of selection.pdf"
+
+
+@pytest.mark.parametrize("raw,fixed", [
+    ("10.1101/2025.08.27.672609doi", "10.1101/2025.08.27.672609"),
+    ("10.3389/fgene.2023.1230579/full", "10.3389/fgene.2023.1230579"),
+    ("10.1038/s41586-020-2649-2Received", "10.1038/s41586-020-2649-2"),
+])
+def test_doi_tail_variants(raw, fixed):
+    assert fixed in list(_doi_variants(raw))
+
+
+def test_trailing_slash_dropped():
+    assert find_doi("https://doi.org/10.3389/fevo.2018.00010/ more") == "10.3389/fevo.2018.00010"
+
+
+def _title_ids(text):
+    from paperwatch.identify import Identifiers
+    return Identifiers(title_guess="Data Transformation with dplyr", source="title guess", text=text)
+
+
+def test_title_search_needs_author_in_pdf(tmp_path, monkeypatch):
+    pdf = _make_pdf(tmp_path / "dplyr_cheat_sheet.pdf", {})
+    monkeypatch.setattr(core, "identify", lambda p: _title_ids("Data transformation with dplyr :: CHEATSHEET"))
+    monkeypatch.setattr(core, "lookup", lambda *a, **k: Paper(
+        title="Data Transformation with dplyr", authors=["Duggan"], year="2024"))
+    res = core.process(pdf, Config())
+    assert not res.renamed and "not named in this PDF" in res.reason
+
+
+def test_title_search_without_authors_rejected(tmp_path, monkeypatch):
+    pdf = _make_pdf(tmp_path / "shape.pdf", {})
+    monkeypatch.setattr(core, "identify", lambda p: _title_ids("shape: functions for plotting"))
+    monkeypatch.setattr(core, "lookup", lambda *a, **k: Paper(title="shape", authors=[], year="2008"))
+    assert "no authors" in core.process(pdf, Config()).reason
+
+
+def test_title_search_accepted_when_author_present(tmp_path, monkeypatch):
+    pdf = _make_pdf(tmp_path / "x.pdf", {})
+    monkeypatch.setattr(core, "identify", lambda p: _title_ids("Data Transformation with dplyr\nJim Duggan, Galway"))
+    monkeypatch.setattr(core, "lookup", lambda *a, **k: Paper(
+        title="Data Transformation with dplyr", authors=["Duggan"], year="2024"))
+    assert core.process(pdf, Config(), dry_run=True).renamed
+
+
+def test_author_in_text():
+    from paperwatch.identify import author_in_text
+    assert author_in_text("van der Walt", "S. van der Walt, NumPy")
+    assert author_in_text("Mendoza-Revilla", "Javier Mendoza-Revilla1")
+    assert not author_in_text("Lee", "sleep tight")
+
+
+# ---------------------------------------------------------------- opt-out
+def test_paperwatchignore_protects_folder_and_subfolders(tmp_path, monkeypatch):
+    (tmp_path / "manuscript").mkdir()
+    (tmp_path / "manuscript" / ".paperwatchignore").touch()
+    (tmp_path / "manuscript" / "v2").mkdir()
+    pdf = _make_pdf(tmp_path / "manuscript" / "v2" / "draft.pdf", {"/doi": "10.1000/abc"})
+    monkeypatch.setattr(core, "lookup", lambda *a, **k: pytest.fail("excluded file must not be looked up"))
+    res = core.process(pdf, Config())
+    assert not res.renamed and ".paperwatchignore" in res.reason and pdf.exists()
+
+
+@pytest.mark.parametrize("pattern", ["*.Rcheck", "*/generated/*"])
+def test_exclude_patterns(tmp_path, monkeypatch, pattern):
+    d = tmp_path / "pkg.Rcheck" / "generated"
+    d.mkdir(parents=True)
+    pdf = _make_pdf(d / "x.pdf", {"/doi": "10.1000/abc"})
+    monkeypatch.setattr(core, "lookup", lambda *a, **k: pytest.fail("excluded file must not be looked up"))
+    assert "excluded" in core.process(pdf, Config(exclude=[pattern])).reason
+
+
+def test_review_papers_are_not_excluded_by_default(tmp_path, monkeypatch):
+    d = tmp_path / "review"
+    d.mkdir()
+    pdf = _make_pdf(d / "post_GWAS_methods_review.pdf", {"/doi": "10.1000/abc"})
+    monkeypatch.setattr(core, "lookup", lambda *a, **k: Paper(title="A review of post-GWAS prioritization approaches",
+                                                             authors=["Hou"], year="2013"))
+    assert core.process(pdf, Config(), dry_run=True).renamed
+
+
+def test_exclude_loaded_from_config(tmp_path):
+    from paperwatch import config
+    f = tmp_path / "c.toml"
+    f.write_text('exclude = ["*.Rcheck", "_book"]\n')
+    assert config.load(f).exclude == ["*.Rcheck", "_book"]

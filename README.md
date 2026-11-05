@@ -97,7 +97,13 @@ ascii_only = false                     # "Schrödinger" -> "Schrodinger"
 title_search = true                    # no DOI/arXiv ID? search Crossref by title (strict match)
 # email = "you@example.org"            # optional: use Crossref's faster "polite" pool
 # move_to = "~/Papers"                 # optional: also move renamed papers here
+exclude = []                           # glob patterns to leave alone, e.g. ["*.Rcheck", "_book"]
 ```
+
+**Protecting your own drafts.** Put an empty file called `.paperwatchignore` in a folder
+(e.g. your manuscript folder) and paperwatch will never touch any PDF in it or its sub-folders.
+`exclude` patterns without a `/` match any folder or file name in the path (`"*.Rcheck"`,
+`"_book"`); patterns with a `/` match the full path (`"*/generated/*"`).
 
 Restart the service after editing (`paperwatch install` again, or `brew services restart paperwatch`).
 
@@ -177,12 +183,19 @@ Restart Codex afterwards so it picks up the new skill.
 1. **Wait for the download to finish.** Browser temp files (`.crdownload`, `.part`, `.download`)
    are ignored, and the file size has to stop changing.
 2. **Check it's really a PDF.** Many "PDF" links actually download an HTML login page.
-3. **Find an identifier**, in this order: DOI in the PDF metadata → arXiv ID in the file name →
-   arXiv stamp on page 1 → first DOI on pages 1–2 → any arXiv ID in the text.
-4. **Look up the metadata** on [Crossref](https://www.crossref.org) (DOIs) or
-   [arXiv](https://arxiv.org) (arXiv IDs and `10.48550/arXiv.*` DOIs).
-5. **No identifier?** It guesses the title (PDF metadata, or the largest text on page 1), searches
-   Crossref, and renames only if the titles match at least 90 %.
+3. **Skip figures and excluded files.** PDFs made by R (`pdf()`, `ggsave()`), matplotlib, cairo,
+   plotly and similar tools are figures, not papers, and are never renamed. Neither is anything
+   under a `.paperwatchignore` folder or matching an `exclude` pattern.
+4. **Find an identifier**, in this order: DOI in the PDF metadata → arXiv ID in the file name →
+   arXiv stamp on page 1 → DOIs and arXiv IDs on pages 1–2.
+5. **Look up the metadata** on [Crossref](https://www.crossref.org) (DOIs) or
+   [arXiv](https://arxiv.org) (arXiv IDs and `10.48550/arXiv.*` DOIs). Junk that text extraction
+   glues onto a DOI (`…doi`, `/full`, `/pdf`, a trailing `/`) is stripped.
+6. **Check it is this paper.** A DOI found in the page text is often a *reference*. It is only
+   accepted if the paper's title is printed in the PDF; otherwise the next DOI is tried.
+7. **No usable identifier?** It guesses the title (PDF metadata, or the largest text on page 1),
+   searches Crossref, and renames only if the titles match at least 90 % *and* the match's first
+   author is named in the PDF.
 6. **Rename safely.** The name is valid on Windows, macOS and Linux, and existing files are never
    overwritten: you get `name (2).pdf` instead.
 
